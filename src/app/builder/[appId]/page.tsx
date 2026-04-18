@@ -1,17 +1,47 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
 
 type BlockType = "hero" | "info" | "yhteystiedot" | "aukioloajat" | "tarjoukset";
 
-type Block = {
+type BlockDataMap = {
+  hero: {
+    title: string;
+    subtitle: string;
+    buttonText: string;
+  };
+  info: {
+    title: string;
+    content: string;
+  };
+  yhteystiedot: {
+    phone: string;
+    address: string;
+    email: string;
+  };
+  aukioloajat: {
+    monday: string;
+    tuesday: string;
+    wednesday: string;
+    thursday: string;
+    friday: string;
+    saturday: string;
+    sunday: string;
+  };
+  tarjoukset: {
+    title: string;
+    price: string;
+    description: string;
+  };
+};
+
+type Block<T extends BlockType = BlockType> = {
   id: string;
-  type: BlockType;
-  title: string;
-  content: string;
+  type: T;
+  data: BlockDataMap[T];
 };
 
 const BLOCK_TYPES: BlockType[] = [
@@ -22,22 +52,42 @@ const BLOCK_TYPES: BlockType[] = [
   "tarjoukset",
 ];
 
-const DEFAULT_BLOCK_CONTENT: Record<BlockType, { title: string; content: string }> = {
-  hero: { title: "Hero-otsikko", content: "Kuvaile yritystäsi lyhyesti." },
-  info: { title: "Tietoa meistä", content: "Kirjoita tärkeimmät tiedot." },
-  yhteystiedot: { title: "Yhteystiedot", content: "Puhelin, sähköposti, osoite." },
-  aukioloajat: { title: "Aukioloajat", content: "Ma-Pe 09:00-17:00" },
-  tarjoukset: { title: "Tarjoukset", content: "Lisää ajankohtaiset tarjoukset." },
+const DEFAULT_BLOCK_DATA: BlockDataMap = {
+  hero: {
+    title: "Hero-otsikko",
+    subtitle: "Lyhyt esittelyteksti",
+    buttonText: "Lue lisaa",
+  },
+  info: {
+    title: "Tietoa meista",
+    content: "Kirjoita tarkempi kuvaus palvelusta.",
+  },
+  yhteystiedot: {
+    phone: "+358 40 123 4567",
+    address: "Esimerkkikatu 1, Helsinki",
+    email: "info@yritys.fi",
+  },
+  aukioloajat: {
+    monday: "09:00 - 17:00",
+    tuesday: "09:00 - 17:00",
+    wednesday: "09:00 - 17:00",
+    thursday: "09:00 - 17:00",
+    friday: "09:00 - 17:00",
+    saturday: "10:00 - 15:00",
+    sunday: "Suljettu",
+  },
+  tarjoukset: {
+    title: "Kevattarjous",
+    price: "19,90 EUR",
+    description: "Sisaltaa kaikki peruspalvelut alennettuun hintaan.",
+  },
 };
 
 function createBlock(type: BlockType): Block {
-  const defaults = DEFAULT_BLOCK_CONTENT[type];
-
   return {
     id: crypto.randomUUID(),
     type,
-    title: defaults.title,
-    content: defaults.content,
+    data: { ...DEFAULT_BLOCK_DATA[type] },
   };
 }
 
@@ -47,6 +97,10 @@ export default function BuilderPage() {
   const supabase = useMemo(() => createClient(), []);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccessVisible, setSaveSuccessVisible] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const selectedBlock = useMemo(
     () => blocks.find((block) => block.id === selectedBlockId) ?? null,
@@ -59,7 +113,7 @@ export default function BuilderPage() {
     setSelectedBlockId(newBlock.id);
   };
 
-  const updateSelectedBlock = (updates: Partial<Pick<Block, "title" | "content">>) => {
+  const updateSelectedBlockField = (field: string, value: string) => {
     if (!selectedBlockId) return;
 
     setBlocks((prev) =>
@@ -67,24 +121,112 @@ export default function BuilderPage() {
         block.id === selectedBlockId
           ? {
               ...block,
-              ...updates,
+              data: {
+                ...block.data,
+                [field]: value,
+              },
             }
           : block,
       ),
     );
   };
 
+  const saveBlocks = useCallback(
+    async (blocksToSave: Block[]) => {
+      if (!appId) return false;
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+      console.log("[builder] saveBlocks user:", user);
+
+      if (userError || !user) return false;
+
+      setIsSaving(true);
+      const { error } = await supabase.from("apps").upsert({
+        id: appId,
+        user_id: user.id,
+        blocks: blocksToSave,
+      });
+      setIsSaving(false);
+
+      if (error) return false;
+
+      setSaveSuccessVisible(true);
+      return true;
+    },
+    [appId, supabase],
+  );
+
   useEffect(() => {
-    if (!appId) return;
+    const loadBlocks = async () => {
+      console.log("[builder] loadBlocks appId:", appId);
+
+      if (!appId) {
+        setBlocks([]);
+        setIsHydrated(true);
+        return;
+      }
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+      console.log("[builder] loadBlocks user:", user);
+
+      if (userError || !user) {
+        setCurrentUserId(null);
+        setBlocks([]);
+        setIsHydrated(true);
+        return;
+      }
+
+      setCurrentUserId(user.id);
+
+      const { data, error } = await supabase
+        .from("apps")
+        .select("blocks")
+        .eq("id", appId)
+        .single();
+
+      console.log("[builder] loadBlocks response:", { data, error });
+
+      if (error || !data?.blocks) {
+        setBlocks([]);
+      } else {
+        setBlocks(data.blocks as Block[]);
+      }
+
+      setIsHydrated(true);
+    };
+
+    void loadBlocks();
+  }, [appId, supabase]);
+
+  useEffect(() => {
+    if (!isHydrated) return;
 
     const timer = setTimeout(() => {
-      void supabase.from("apps").upsert({ id: appId, blocks });
+      void saveBlocks(blocks);
     }, 500);
 
     return () => {
       clearTimeout(timer);
     };
-  }, [appId, blocks, supabase]);
+  }, [blocks, isHydrated, saveBlocks]);
+
+  useEffect(() => {
+    if (!saveSuccessVisible) return;
+
+    const timer = setTimeout(() => {
+      setSaveSuccessVisible(false);
+    }, 1500);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [saveSuccessVisible]);
 
   return (
     <main className="flex min-h-screen bg-slate-50 text-slate-900">
@@ -105,7 +247,20 @@ export default function BuilderPage() {
       </aside>
 
       <section className="flex-1 p-6">
-        <h1 className="mb-4 text-xl font-semibold">Canvas</h1>
+        <div className="mb-4 flex items-center justify-between">
+          <h1 className="text-xl font-semibold">Canvas</h1>
+          <div className="flex items-center gap-3">
+            {saveSuccessVisible ? <p className="text-xs text-emerald-600">Tallennettu</p> : null}
+            <button
+              type="button"
+              onClick={() => void saveBlocks(blocks)}
+              disabled={isSaving || !currentUserId}
+              className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isSaving ? "Tallennetaan..." : "Tallenna"}
+            </button>
+          </div>
+        </div>
         <div className="space-y-3 rounded-lg border border-dashed border-slate-300 bg-white p-4">
           {blocks.length === 0 ? (
             <p className="text-sm text-slate-500">
@@ -116,11 +271,18 @@ export default function BuilderPage() {
               const isSelected = block.id === selectedBlockId;
 
               return (
-                <button
+                <div
                   key={block.id}
-                  type="button"
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setSelectedBlockId(block.id)}
-                  className={`w-full rounded-lg border p-4 text-left transition ${
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setSelectedBlockId(block.id);
+                    }
+                  }}
+                  className={`w-full cursor-pointer rounded-lg border p-4 text-left transition ${
                     isSelected
                       ? "border-blue-500 bg-blue-50"
                       : "border-slate-200 bg-slate-50 hover:border-slate-300"
@@ -129,9 +291,53 @@ export default function BuilderPage() {
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                     {index + 1}. {block.type}
                   </p>
-                  <h3 className="mt-1 text-base font-semibold">{block.title}</h3>
-                  <p className="mt-1 text-sm text-slate-600">{block.content}</p>
-                </button>
+                  {block.type === "hero" ? (
+                    <>
+                      <h3 className="mt-2 text-3xl font-bold tracking-tight">{block.data.title}</h3>
+                      <p className="mt-2 text-base text-slate-600">{block.data.subtitle}</p>
+                      <button
+                        type="button"
+                        className="mt-4 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white"
+                      >
+                        {block.data.buttonText}
+                      </button>
+                    </>
+                  ) : null}
+                  {block.type === "info" ? (
+                    <>
+                      <h3 className="mt-1 text-base font-semibold">{block.data.title}</h3>
+                      <p className="mt-1 text-sm text-slate-600">{block.data.content}</p>
+                    </>
+                  ) : null}
+                  {block.type === "yhteystiedot" ? (
+                    <>
+                      <h3 className="mt-1 text-base font-semibold">{block.data.phone}</h3>
+                      <p className="mt-1 text-sm text-slate-600">{block.data.address}</p>
+                      <p className="mt-1 text-sm text-slate-600">{block.data.email}</p>
+                    </>
+                  ) : null}
+                  {block.type === "aukioloajat" ? (
+                    <>
+                      <h3 className="mt-1 text-base font-semibold">Aukioloajat</h3>
+                      <div className="mt-2 space-y-1 text-sm text-slate-600">
+                        <p>Monday: {block.data.monday}</p>
+                        <p>Tuesday: {block.data.tuesday}</p>
+                        <p>Wednesday: {block.data.wednesday}</p>
+                        <p>Thursday: {block.data.thursday}</p>
+                        <p>Friday: {block.data.friday}</p>
+                        <p>Saturday: {block.data.saturday}</p>
+                        <p>Sunday: {block.data.sunday}</p>
+                      </div>
+                    </>
+                  ) : null}
+                  {block.type === "tarjoukset" ? (
+                    <>
+                      <h3 className="mt-1 text-base font-semibold">{block.data.title}</h3>
+                      <p className="mt-1 text-sm text-slate-600">{block.data.price}</p>
+                      <p className="mt-1 text-sm text-slate-600">{block.data.description}</p>
+                    </>
+                  ) : null}
+                </div>
               );
             })
           )}
@@ -145,33 +351,191 @@ export default function BuilderPage() {
             Valitse blokki canvasilta muokataksesi sen sisältöä.
           </p>
         ) : (
-          <div className="space-y-4">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="block-title">
-                Otsikko
-              </label>
-              <input
-                id="block-title"
-                type="text"
-                value={selectedBlock.title}
-                onChange={(event) => updateSelectedBlock({ title: event.target.value })}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
-              />
-            </div>
+          <>
+            {selectedBlock.type === "hero" ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="hero-title">
+                    Title
+                  </label>
+                  <input
+                    id="hero-title"
+                    type="text"
+                    value={selectedBlock.data.title}
+                    onChange={(event) => updateSelectedBlockField("title", event.target.value)}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="hero-subtitle">
+                    Subtitle
+                  </label>
+                  <input
+                    id="hero-subtitle"
+                    type="text"
+                    value={selectedBlock.data.subtitle}
+                    onChange={(event) => updateSelectedBlockField("subtitle", event.target.value)}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="hero-button-text">
+                    Button text
+                  </label>
+                  <input
+                    id="hero-button-text"
+                    type="text"
+                    value={selectedBlock.data.buttonText}
+                    onChange={(event) => updateSelectedBlockField("buttonText", event.target.value)}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+                  />
+                </div>
+              </div>
+            ) : null}
 
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="block-content">
-                Sisältö
-              </label>
-              <textarea
-                id="block-content"
-                value={selectedBlock.content}
-                onChange={(event) => updateSelectedBlock({ content: event.target.value })}
-                rows={6}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
-              />
-            </div>
-          </div>
+            {selectedBlock.type === "info" ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="info-title">
+                    Title
+                  </label>
+                  <input
+                    id="info-title"
+                    type="text"
+                    value={selectedBlock.data.title}
+                    onChange={(event) => updateSelectedBlockField("title", event.target.value)}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="info-content">
+                    Content
+                  </label>
+                  <textarea
+                    id="info-content"
+                    value={selectedBlock.data.content}
+                    onChange={(event) => updateSelectedBlockField("content", event.target.value)}
+                    rows={6}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+                  />
+                </div>
+              </div>
+            ) : null}
+
+            {selectedBlock.type === "yhteystiedot" ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="contact-phone">
+                    Phone
+                  </label>
+                  <input
+                    id="contact-phone"
+                    type="text"
+                    value={selectedBlock.data.phone}
+                    onChange={(event) => updateSelectedBlockField("phone", event.target.value)}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="contact-address">
+                    Address
+                  </label>
+                  <input
+                    id="contact-address"
+                    type="text"
+                    value={selectedBlock.data.address}
+                    onChange={(event) => updateSelectedBlockField("address", event.target.value)}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="contact-email">
+                    Email
+                  </label>
+                  <input
+                    id="contact-email"
+                    type="text"
+                    value={selectedBlock.data.email}
+                    onChange={(event) => updateSelectedBlockField("email", event.target.value)}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+                  />
+                </div>
+              </div>
+            ) : null}
+
+            {selectedBlock.type === "aukioloajat" ? (
+              <div className="space-y-4">
+                {(
+                  [
+                    ["monday", "Monday"],
+                    ["tuesday", "Tuesday"],
+                    ["wednesday", "Wednesday"],
+                    ["thursday", "Thursday"],
+                    ["friday", "Friday"],
+                    ["saturday", "Saturday"],
+                    ["sunday", "Sunday"],
+                  ] as const
+                ).map(([field, label]) => (
+                  <div key={field}>
+                    <label
+                      className="mb-1 block text-sm font-medium text-slate-700"
+                      htmlFor={`hours-${field}`}
+                    >
+                      {label}
+                    </label>
+                    <input
+                      id={`hours-${field}`}
+                      type="text"
+                      value={selectedBlock.data[field]}
+                      onChange={(event) => updateSelectedBlockField(field, event.target.value)}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {selectedBlock.type === "tarjoukset" ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="offer-title">
+                    Title
+                  </label>
+                  <input
+                    id="offer-title"
+                    type="text"
+                    value={selectedBlock.data.title}
+                    onChange={(event) => updateSelectedBlockField("title", event.target.value)}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="offer-price">
+                    Price
+                  </label>
+                  <input
+                    id="offer-price"
+                    type="text"
+                    value={selectedBlock.data.price}
+                    onChange={(event) => updateSelectedBlockField("price", event.target.value)}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="offer-description">
+                    Description
+                  </label>
+                  <textarea
+                    id="offer-description"
+                    value={selectedBlock.data.description}
+                    onChange={(event) => updateSelectedBlockField("description", event.target.value)}
+                    rows={6}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+                  />
+                </div>
+              </div>
+            ) : null}
+          </>
         )}
       </aside>
     </main>
