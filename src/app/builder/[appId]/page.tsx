@@ -1,6 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+
+import { createClient } from "@/lib/supabase/client";
 
 type BlockType = "hero" | "info" | "yhteystiedot" | "aukioloajat" | "tarjoukset";
 
@@ -39,6 +42,9 @@ function createBlock(type: BlockType): Block {
 }
 
 export default function BuilderPage() {
+  const params = useParams<{ appId: string | string[] }>();
+  const appId = Array.isArray(params.appId) ? params.appId[0] : params.appId;
+  const supabase = useMemo(() => createClient(), []);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
 
@@ -67,6 +73,18 @@ export default function BuilderPage() {
       ),
     );
   };
+
+  useEffect(() => {
+    if (!appId) return;
+
+    const timer = setTimeout(() => {
+      void supabase.from("apps").upsert({ id: appId, blocks });
+    }, 500);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [appId, blocks, supabase]);
 
   return (
     <main className="flex min-h-screen bg-slate-50 text-slate-900">
