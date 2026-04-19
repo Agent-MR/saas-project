@@ -136,22 +136,48 @@ export default function BuilderPage() {
       if (!appId) return false;
 
       const {
-        data: { user },
+        data: { user: userFromGetUser },
         error: userError,
       } = await supabase.auth.getUser();
-      console.log("[builder] saveBlocks user:", user);
+      if (userError) {
+        console.error("[builder] saveBlocks getUser error:", userError);
+      }
 
-      if (userError || !user) return false;
+      let user = userFromGetUser;
+      if (!user) {
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
+        if (sessionError) {
+          console.error("[builder] saveBlocks getSession error:", sessionError);
+        }
+        user = session?.user ?? null;
+      }
+
+      console.log("[builder] saveBlocks user:", user);
+      if (!user) {
+        console.warn("[builder] saveBlocks: no user; attempting upsert anyway (may fail RLS)");
+      }
 
       setIsSaving(true);
-      const { error } = await supabase.from("apps").upsert({
+
+      const upsertRow: { id: string; name: string; blocks: Block[]; user_id?: string } = {
         id: appId,
-        user_id: user.id,
+        name: "My App",
         blocks: blocksToSave,
-      });
+      };
+      if (user?.id) {
+        upsertRow.user_id = user.id;
+      }
+
+      const { error } = await supabase.from("apps").upsert(upsertRow);
       setIsSaving(false);
 
-      if (error) return false;
+      if (error) {
+        console.error("[builder] saveBlocks upsert error:", error);
+        return false;
+      }
 
       setSaveSuccessVisible(true);
       return true;
@@ -160,29 +186,56 @@ export default function BuilderPage() {
   );
 
   useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUserId(session?.user?.id ?? null);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
+
+  useEffect(() => {
     const loadBlocks = async () => {
       console.log("[builder] loadBlocks appId:", appId);
 
       if (!appId) {
         setBlocks([]);
+        setCurrentUserId(null);
         setIsHydrated(true);
         return;
       }
 
       const {
-        data: { user },
+        data: { user: userFromGetUser },
         error: userError,
       } = await supabase.auth.getUser();
-      console.log("[builder] loadBlocks user:", user);
+      if (userError) {
+        console.error("[builder] loadBlocks getUser error:", userError);
+      }
 
-      if (userError || !user) {
-        setCurrentUserId(null);
+      let user = userFromGetUser;
+      if (!user) {
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
+        if (sessionError) {
+          console.error("[builder] loadBlocks getSession error:", sessionError);
+        }
+        user = session?.user ?? null;
+      }
+
+      console.log("[builder] loadBlocks user:", user);
+      setCurrentUserId(user?.id ?? null);
+
+      if (!user) {
         setBlocks([]);
         setIsHydrated(true);
         return;
       }
-
-      setCurrentUserId(user.id);
 
       const { data, error } = await supabase
         .from("apps")
@@ -254,7 +307,7 @@ export default function BuilderPage() {
             <button
               type="button"
               onClick={() => void saveBlocks(blocks)}
-              disabled={isSaving || !currentUserId}
+              disabled={isSaving}
               className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSaving ? "Tallennetaan..." : "Tallenna"}
