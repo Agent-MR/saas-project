@@ -293,48 +293,68 @@ export default function BuilderPage() {
                   </p>
                   {block.type === "hero" ? (
                     <>
-                      <h3 className="mt-2 text-3xl font-bold tracking-tight">{block.data.title}</h3>
-                      <p className="mt-2 text-base text-slate-600">{block.data.subtitle}</p>
+                      <h3 className="mt-2 text-3xl font-bold tracking-tight">
+                        {(block.data as BlockDataMap["hero"]).title}
+                      </h3>
+                      <p className="mt-2 text-base text-slate-600">
+                        {(block.data as BlockDataMap["hero"]).subtitle}
+                      </p>
                       <button
                         type="button"
                         className="mt-4 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white"
                       >
-                        {block.data.buttonText}
+                        {(block.data as BlockDataMap["hero"]).buttonText}
                       </button>
                     </>
                   ) : null}
                   {block.type === "info" ? (
                     <>
-                      <h3 className="mt-1 text-base font-semibold">{block.data.title}</h3>
-                      <p className="mt-1 text-sm text-slate-600">{block.data.content}</p>
+                      <h3 className="mt-1 text-base font-semibold">
+                        {(block.data as BlockDataMap["info"]).title}
+                      </h3>
+                      <p className="mt-1 text-sm text-slate-600">
+                        {(block.data as BlockDataMap["info"]).content}
+                      </p>
                     </>
                   ) : null}
                   {block.type === "yhteystiedot" ? (
                     <>
-                      <h3 className="mt-1 text-base font-semibold">{block.data.phone}</h3>
-                      <p className="mt-1 text-sm text-slate-600">{block.data.address}</p>
-                      <p className="mt-1 text-sm text-slate-600">{block.data.email}</p>
+                      <h3 className="mt-1 text-base font-semibold">
+                        {(block.data as BlockDataMap["yhteystiedot"]).phone}
+                      </h3>
+                      <p className="mt-1 text-sm text-slate-600">
+                        {(block.data as BlockDataMap["yhteystiedot"]).address}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-600">
+                        {(block.data as BlockDataMap["yhteystiedot"]).email}
+                      </p>
                     </>
                   ) : null}
                   {block.type === "aukioloajat" ? (
                     <>
                       <h3 className="mt-1 text-base font-semibold">Aukioloajat</h3>
                       <div className="mt-2 space-y-1 text-sm text-slate-600">
-                        <p>Monday: {block.data.monday}</p>
-                        <p>Tuesday: {block.data.tuesday}</p>
-                        <p>Wednesday: {block.data.wednesday}</p>
-                        <p>Thursday: {block.data.thursday}</p>
-                        <p>Friday: {block.data.friday}</p>
-                        <p>Saturday: {block.data.saturday}</p>
-                        <p>Sunday: {block.data.sunday}</p>
+                        <p>Monday: {(block.data as BlockDataMap["aukioloajat"]).monday}</p>
+                        <p>Tuesday: {(block.data as BlockDataMap["aukioloajat"]).tuesday}</p>
+                        <p>Wednesday: {(block.data as BlockDataMap["aukioloajat"]).wednesday}</p>
+                        <p>Thursday: {(block.data as BlockDataMap["aukioloajat"]).thursday}</p>
+                        <p>Friday: {(block.data as BlockDataMap["aukioloajat"]).friday}</p>
+                        <p>Saturday: {(block.data as BlockDataMap["aukioloajat"]).saturday}</p>
+                        <p>Sunday: {(block.data as BlockDataMap["aukioloajat"]).sunday}</p>
                       </div>
                     </>
                   ) : null}
                   {block.type === "tarjoukset" ? (
                     <>
-                      <h3 className="mt-1 text-base font-semibold">{block.data.title}</h3>
-                      <p className="mt-1 text-sm text-slate-600">{block.data.price}</p>
-                      <p className="mt-1 text-sm text-slate-600">{block.data.description}</p>
+                      <h3 className="mt-1 text-base font-semibold">
+                        {(block.data as BlockDataMap["tarjoukset"]).title}
+                      </h3>
+                      <p className="mt-1 text-sm text-slate-600">
+                        {(block.data as BlockDataMap["tarjoukset"]).price}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-600">
+                        {(block.data as BlockDataMap["tarjoukset"]).description}
+                      </p>
                     </>
                   ) : null}
                 </div>
@@ -361,7 +381,7 @@ export default function BuilderPage() {
                   <input
                     id="hero-title"
                     type="text"
-                    value={selectedBlock.data.title}
+                    value={(selectedBlock.data as BlockDataMap["hero"]).title}
                     onChange={(event) => updateSelectedBlockField("title", event.target.value)}
                     className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
                   />
@@ -373,7 +393,7 @@ export default function BuilderPage() {
                   <input
                     id="hero-subtitle"
                     type="text"
-                    value={selectedBlock.data.subtitle}
+                    value={(selectedBlock.data as BlockDataMap["hero"]).subtitle}
                     onChange={(event) => updateSelectedBlockField("subtitle", event.target.value)}
                     className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
                   />
@@ -385,7 +405,7 @@ export default function BuilderPage() {
                   <input
                     id="hero-button-text"
                     type="text"
-                    value={selectedBlock.data.buttonText}
+                    value={(selectedBlock.data as BlockDataMap["hero"]).buttonText}
                     onChange={(event) => updateSelectedBlockField("buttonText", event.target.value)}
                     className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
                   />
@@ -402,7 +422,7 @@ export default function BuilderPage() {
                   <input
                     id="info-title"
                     type="text"
-                    value={selectedBlock.data.title}
+                    value={(selectedBlock.data as BlockDataMap["info"]).title}
                     onChange={(event) => updateSelectedBlockField("title", event.target.value)}
                     className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
                   />
@@ -413,7 +433,7 @@ export default function BuilderPage() {
                   </label>
                   <textarea
                     id="info-content"
-                    value={selectedBlock.data.content}
+                    value={(selectedBlock.data as BlockDataMap["info"]).content}
                     onChange={(event) => updateSelectedBlockField("content", event.target.value)}
                     rows={6}
                     className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
@@ -431,7 +451,7 @@ export default function BuilderPage() {
                   <input
                     id="contact-phone"
                     type="text"
-                    value={selectedBlock.data.phone}
+                    value={(selectedBlock.data as BlockDataMap["yhteystiedot"]).phone}
                     onChange={(event) => updateSelectedBlockField("phone", event.target.value)}
                     className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
                   />
@@ -443,7 +463,7 @@ export default function BuilderPage() {
                   <input
                     id="contact-address"
                     type="text"
-                    value={selectedBlock.data.address}
+                    value={(selectedBlock.data as BlockDataMap["yhteystiedot"]).address}
                     onChange={(event) => updateSelectedBlockField("address", event.target.value)}
                     className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
                   />
@@ -455,7 +475,7 @@ export default function BuilderPage() {
                   <input
                     id="contact-email"
                     type="text"
-                    value={selectedBlock.data.email}
+                    value={(selectedBlock.data as BlockDataMap["yhteystiedot"]).email}
                     onChange={(event) => updateSelectedBlockField("email", event.target.value)}
                     className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
                   />
@@ -486,7 +506,7 @@ export default function BuilderPage() {
                     <input
                       id={`hours-${field}`}
                       type="text"
-                      value={selectedBlock.data[field]}
+                      value={(selectedBlock.data as BlockDataMap["aukioloajat"])[field]}
                       onChange={(event) => updateSelectedBlockField(field, event.target.value)}
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
                     />
@@ -504,7 +524,7 @@ export default function BuilderPage() {
                   <input
                     id="offer-title"
                     type="text"
-                    value={selectedBlock.data.title}
+                    value={(selectedBlock.data as BlockDataMap["tarjoukset"]).title}
                     onChange={(event) => updateSelectedBlockField("title", event.target.value)}
                     className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
                   />
@@ -516,7 +536,7 @@ export default function BuilderPage() {
                   <input
                     id="offer-price"
                     type="text"
-                    value={selectedBlock.data.price}
+                    value={(selectedBlock.data as BlockDataMap["tarjoukset"]).price}
                     onChange={(event) => updateSelectedBlockField("price", event.target.value)}
                     className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
                   />
@@ -527,7 +547,7 @@ export default function BuilderPage() {
                   </label>
                   <textarea
                     id="offer-description"
-                    value={selectedBlock.data.description}
+                    value={(selectedBlock.data as BlockDataMap["tarjoukset"]).description}
                     onChange={(event) => updateSelectedBlockField("description", event.target.value)}
                     rows={6}
                     className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
